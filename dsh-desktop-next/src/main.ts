@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, net, Notification, protocol, safeStorage, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, Notification, protocol, safeStorage, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
 import { appRequestHeaders, forwardWebRequest, serveWebDocument } from './web-document.ts'
 import { installAppDownloads } from './app-downloads.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
@@ -270,6 +270,15 @@ function createWindow(preload: string, primary = false): BrowserWindow {
     // `DesktopBrowserGuests` issued the lease, and the guest itself never gets the tag.
     webPreferences: { preload: join(root, 'lib', preload), contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: primary },
   })
+  // Electron's BrowserWindow `icon` option does not always publish `_NET_WM_ICON` on X11
+  // (large 16-bit sources fail to decode; oversized bitmaps are dropped). Publish a modest
+  // square so Cinnamon/GNOME panel show the app icon instead of the generic executable gear.
+  if (process.platform === 'linux') {
+    try {
+      const icon = nativeImage.createFromPath(unpackedPath(join(root, 'build', 'app-icon.png')))
+      if (!icon.isEmpty()) window.setIcon(icon.resize({ width: 128, height: 128 }))
+    } catch { /* Window still opens; the panel falls back to the .desktop Icon. */ }
+  }
   let intervalStart = Date.now()
   let count = 0
   let failureCount = 0
